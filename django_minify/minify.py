@@ -1,4 +1,5 @@
 from __future__ import with_statement
+from collections import defaultdict
 import os
 import subprocess
 from django_minify.conf import settings
@@ -132,7 +133,10 @@ class Minify(object):
         fh.close()
     
     def get_combined_filename(self, force_generation=False, raise_=False):
-        cached_file_path = self.cache.get(tuple(self.files))
+        return self._get_combined_filename(files=self.files, force_generation=False, raise_=False)
+
+    def _get_combined_filename(self, files, force_generation=False, raise_=False):
+        cached_file_path = self.cache.get(tuple(files))
         if settings.DEBUG:
             # Always continue when DEBUG is enabled
             pass
@@ -141,17 +145,17 @@ class Minify(object):
                 return cached_file_path
             else:
                 logging.error('Unable to generate cache because '
-                    '`MINIFY_FROM_CACHE` is enabled was trying to compile %s', self.files)
+                    '`MINIFY_FROM_CACHE` is enabled was trying to compile %s', files)
                 if raise_:
-                    raise FromCacheException('When FROM CACHE is enabled you cannot access the file system, was trying to compile %s' % self.files)
+                    raise FromCacheException('When FROM CACHE is enabled you cannot access the file system, was trying to compile %s' % files)
         
         timestamp = 0
-        digest = abs(hash(','.join(self.files)))
+        digest = abs(hash(','.join(files)))
         
-        files = []
-        language_specific = has_lang(self.files)
+        combined_files = []
+        language_specific = has_lang(files)
         # the filename will be max(timestamp
-        for file_ in self.files:
+        for file_ in files:
             simple_fullpath = os.path.join(settings.MEDIA_ROOT, self.extension,
                 'original', file_)
             fullpaths = expand_on_lang(simple_fullpath)
@@ -160,7 +164,7 @@ class Minify(object):
                 stat = os.stat(fullpath)
                 timestamp = max(timestamp, stat.st_mtime, stat.st_ctime)
             #simple fullpath is the version with <lang> still in there
-            files.append(simple_fullpath)
+            combined_files.append(simple_fullpath)
         
         cached_file_path = os.path.join(self.cache_dir, '%d_debug_%d.%s' % 
             (digest, timestamp, self.extension))
@@ -169,11 +173,11 @@ class Minify(object):
         if not os.path.isfile(cached_file_path) or force_generation:
             if not os.path.isdir(self.cache_dir):
                 os.makedirs(self.cache_dir)
-            cached_file_path = self._generate_combined_file(cached_file_path, files)
+            cached_file_path = self._generate_combined_file(cached_file_path, combined_files)
         elif language_specific:
             cached_file_path = append_lang(cached_file_path)
             
-        self.cache[tuple(self.files)] = cached_file_path
+        self.cache[tuple(files)] = cached_file_path
         
         return cached_file_path
 
@@ -197,7 +201,7 @@ class Minify(object):
         combined_per_locale = dict()
         #store the stripped file per path
         stripped_files_dict = dict()
-        
+
         #loop through all files and combine them, expand if there is a <lang>
         for file_path in files:
             localized_paths = expand_on_lang(file_path)
@@ -211,6 +215,7 @@ class Minify(object):
                 stripped_files_dict[localized_path] = data
                 read_fh.close()
                 
+
         #generate the combined file for each locale
         locales = get_languages_list(language_specific)
         for locale in locales:
@@ -260,9 +265,24 @@ class Minify(object):
         
         if language_specific:
             filename = append_lang(filename)
+
             
         return filename
-    
+
+    def minimize_file_to_cache(self, input_filename):
+        # return input_filename
+        input_filename = os.path.join(settings.MEDIA_ROOT, self.extension,
+            'original', input_filename)
+        with open(input_filename) as fh:
+            digest = hash(fh.read())
+        tmp_filename = "%s_%s.tmp" % (input_filename, digest)
+        if input_filename not in self.cache:
+            tmp_filename = os.path.join(settings.MEDIA_ROOT, self.extension,
+                'cache', tmp_filename)
+            self._minimize_file(input_filename, tmp_filename)
+            self.cache[input_filename] = tmp_filename
+        return tmp_filename
+
     def get_minified_filename(self, force_generation=False):
         '''
         Returns the minified filename, for language specific files it will return
@@ -284,20 +304,37 @@ class Minify(object):
             for lang_specific_filename in output_filenames:
                 if not os.path.isfile(lang_specific_filename):
                     compiled_files_available = False
-            
+
+            # Keep a minified version of each file
+            # flip the minification of a combination of files in the combination of each minified file
+            # minify(combine(a,b,c)) = combine(minify(a), minify(a), minify(a))
+            non_localized_files = [f for f in self.files if expand_on_lang(f) == [f]]
+            non_localized_minified_filenames = [self.minimize_file_to_cache(f) for f in non_localized_files]
+            non_localized_filename = self._get_combined_filename(non_localized_minified_filenames)
+
+            # minify each localized file
+            minified_localized = defaultdict(list)
+            localized_files =[f for f in self.files if expand_on_lang(f) != [f]]
+            for f in localized_files:
+                for locale in get_languages_list(True):
+                    loc_f = replace_lang(f, locale)
+                    minified_localized[locale].append(self.minimize_file_to_cache(loc_f))
+
+            # loop over locales and attach localized content to the non localized content
             if not compiled_files_available or force_generation:
-                #loop over the various locales
-                input_filenames = expand_on_lang(input_filename)
-                for input_filename in input_filenames:
-                    lang_specific_output_path = input_filename.replace('_debug_', '_mini_')
+                with open(non_localized_filename, "r") as fh:
+                    not_localized_content = fh.read()
+                for locale in get_languages_list(bool(localized_files)):
+                    filename = replace_lang(input_filename, locale)
+                    lang_specific_output_path = filename.replace('_debug_', '_mini_')
                     tmp_filename = lang_specific_output_path + '.tmp'
-                    #compile towards a temporary file, which only this process and its children can touch
-                    if os.name == 'nt':
-                        #child processes cant access things we lock under windows like environments
-                        self._minimize_file(input_filename, tmp_filename)
-                    else:
-                        with portalocker.Lock(tmp_filename, timeout=MAX_WAIT):
-                            self._minimize_file(input_filename, tmp_filename)
+                    localized_filename = self._get_combined_filename(minified_localized[locale])
+
+                    with open(tmp_filename, "w") as fh:
+                        with open(localized_filename) as loc_fh:
+                            fh.write(loc_fh.read())
+                        fh.write(not_localized_content)
+
                     #raise an error if the file exist, or remove it if rebuilding
                     if os.path.isfile(lang_specific_output_path):
                         os.remove(lang_specific_output_path)
