@@ -36,7 +36,7 @@ class FileCache(object):
     def __init__(self, cache_dir):
         self.cache_file = os.path.join(cache_dir, 'index.pickle')
         self.read()
-    
+
     def read(self):
         if(os.path.isfile(self.cache_file) and settings.FROM_CACHE
                 and not settings.DEBUG):
@@ -140,7 +140,7 @@ class Minify(object):
         if settings.DEBUG:
             # Always continue when DEBUG is enabled
             pass
-        elif settings.FROM_CACHE:
+        elif settings.FROM_CACHE and not force_generation:
             if cached_file_path:
                 return cached_file_path
             else:
@@ -150,8 +150,7 @@ class Minify(object):
                     raise FromCacheException('When FROM CACHE is enabled you cannot access the file system, was trying to compile %s' % files)
         
         timestamp = 0
-        digest = abs(hash(','.join(files)))
-        
+
         combined_files = []
         language_specific = has_lang(files)
         # the filename will be max(timestamp
@@ -166,10 +165,13 @@ class Minify(object):
             #simple fullpath is the version with <lang> still in there
             combined_files.append(simple_fullpath)
         
-        cached_file_path = os.path.join(self.cache_dir, '%d_debug_%d.%s' % 
-            (digest, timestamp, self.extension))
+        cached_file_path = os.path.join(self.cache_dir, '%d_debug.%s' % 
+            (timestamp, self.extension))
         
-        
+        # ok if the expected output name is the one in cache then return it
+        if settings.FROM_CACHE and force_generation and cached_file_path == self.cache.get(tuple(files)):
+            return cached_file_path
+
         if not os.path.isfile(cached_file_path) or force_generation:
             if not os.path.isdir(self.cache_dir):
                 os.makedirs(self.cache_dir)
@@ -270,15 +272,13 @@ class Minify(object):
         return filename
 
     def minimize_file_to_cache(self, input_filename):
-        # return input_filename
+        tmp_filename = os.path.join(settings.MEDIA_ROOT, self.extension,
+            'cache', input_filename)
         input_filename = os.path.join(settings.MEDIA_ROOT, self.extension,
             'original', input_filename)
-        with open(input_filename) as fh:
-            digest = hash(fh.read())
-        tmp_filename = "%s_%s.tmp" % (input_filename, digest)
-        if input_filename not in self.cache:
-            tmp_filename = os.path.join(settings.MEDIA_ROOT, self.extension,
-                'cache', tmp_filename)
+        stat = os.stat(input_filename)
+        tmp_filename = "%s_%s.tmp" % (input_filename, max(stat.st_mtime, stat.st_ctime))
+        if self.cache.get(input_filename) != tmp_filename:
             self._minimize_file(input_filename, tmp_filename)
             self.cache[input_filename] = tmp_filename
         return tmp_filename
@@ -290,7 +290,7 @@ class Minify(object):
         '''
         input_filename = self.get_combined_filename()
         output_filename = input_filename.replace('_debug_', '_mini_')
-        if output_filename in self.cache:
+        if output_filename in self.cache and not force_generation:
             #if the output is cached, immediatly return it without checking the filesystem
             return output_filename
         else:
@@ -310,7 +310,7 @@ class Minify(object):
             # minify(combine(a,b,c)) = combine(minify(a), minify(a), minify(a))
             non_localized_files = [f for f in self.files if expand_on_lang(f) == [f]]
             non_localized_minified_filenames = [self.minimize_file_to_cache(f) for f in non_localized_files]
-            non_localized_filename = self._get_combined_filename(non_localized_minified_filenames)
+            non_localized_filename = self._get_combined_filename(non_localized_minified_filenames, force_generation)
 
             # minify each localized file
             minified_localized = defaultdict(list)
@@ -328,7 +328,7 @@ class Minify(object):
                     filename = replace_lang(input_filename, locale)
                     lang_specific_output_path = filename.replace('_debug_', '_mini_')
                     tmp_filename = lang_specific_output_path + '.tmp'
-                    localized_filename = self._get_combined_filename(minified_localized[locale])
+                    localized_filename = self._get_combined_filename(minified_localized[locale], force_generation)
 
                     with open(tmp_filename, "w") as fh:
                         with open(localized_filename) as loc_fh:
@@ -355,10 +355,10 @@ class Minify(object):
         return settings.MEDIA_URL + relative_filename
     
     def get_combined_url(self):
-        return self._filename_to_url(self.get_combined_filename())
+        return self._filename_to_url(self.get_combined_filename(force_generation=settings.OFFLINE_GENERATION))
     
     def get_minified_url(self):
-        return self._filename_to_url(self.get_minified_filename())
+        return self._filename_to_url(self.get_minified_filename(force_generation=settings.OFFLINE_GENERATION))
 
 class MinifyCss(Minify):
     extension = 'css'
@@ -390,9 +390,9 @@ def minify(path, files, extension, minimize=True, compress=True, prefix='',
     
     minifier = Minifier(files)
     if minimize:
-        return minifier.get_minified_filename()
+        return minifier.get_minified_filename(force_generation=settings.OFFLINE_GENERATION)
     else:
-        return minifier.get_combined_filename()
+        return minifier.get_combined_filename(force_generation=settings.OFFLINE_GENERATION)
 
 if __name__ == '__main__':
     import doctest

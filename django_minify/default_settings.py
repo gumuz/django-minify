@@ -54,6 +54,7 @@ CSS_INCLUDE = '''
 '''
 
 FROM_CACHE = True
+OFFLINE_GENERATION = False
 
 DEV_LANGUAGES = (
     ('en', 'English'),
