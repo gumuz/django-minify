@@ -104,7 +104,6 @@ class Minify(object):
     def _minimize_file(self, input_filename, output_filename):
         '''
         '''
-        print 'minify %s' % input_filename
         if self.COMPRESSION_COMMAND:
             cmd = self.COMPRESSION_COMMAND % dict(
                 output_filename=output_filename,
