@@ -104,6 +104,7 @@ class Minify(object):
     def _minimize_file(self, input_filename, output_filename):
         '''
         '''
+        print 'minify %s' % input_filename
         if self.COMPRESSION_COMMAND:
             cmd = self.COMPRESSION_COMMAND % dict(
                 output_filename=output_filename,
@@ -149,7 +150,7 @@ class Minify(object):
                 if raise_:
                     raise FromCacheException('When FROM CACHE is enabled you cannot access the file system, was trying to compile %s' % files)
         
-        timestamp = 0
+        digest = ''
 
         combined_files = []
         language_specific = has_lang(files)
@@ -160,13 +161,12 @@ class Minify(object):
             fullpaths = expand_on_lang(simple_fullpath)
             #expand to language specific versions, because if they changed we need to redirect
             for fullpath in fullpaths:
-                stat = os.stat(fullpath)
-                timestamp = max(timestamp, stat.st_mtime, stat.st_ctime)
+                digest += str(hash(open(fullpath).read()))
             #simple fullpath is the version with <lang> still in there
             combined_files.append(simple_fullpath)
         
         cached_file_path = os.path.join(self.cache_dir, '%d_debug.%s' % 
-            (timestamp, self.extension))
+            (hash(digest), self.extension))
         
         # ok if the expected output name is the one in cache then return it
         if settings.FROM_CACHE and force_generation and cached_file_path == self.cache.get(tuple(files)):
@@ -276,8 +276,8 @@ class Minify(object):
             'cache', input_filename)
         input_filename = os.path.join(settings.MEDIA_ROOT, self.extension,
             'original', input_filename)
-        stat = os.stat(input_filename)
-        tmp_filename = "%s_%s.tmp" % (input_filename, max(stat.st_mtime, stat.st_ctime))
+        digest = hash(open(input_filename).read())
+        tmp_filename = "%s_%s.tmp" % (input_filename, digest)
         if self.cache.get(input_filename) != tmp_filename:
             self._minimize_file(input_filename, tmp_filename)
             self.cache[input_filename] = tmp_filename
