@@ -277,7 +277,7 @@ class Minify(object):
         input_filename = os.path.join(settings.MEDIA_ROOT, self.extension,
             'original', input_filename)
         digest = hash(open(input_filename).read())
-        tmp_filename = "%s_%s.tmp" % (input_filename, digest)
+        tmp_filename = "%s_%s.tmp" % (input_filename, abs(digest))
         if self.cache.get(input_filename) != tmp_filename:
             self._minimize_file(input_filename, tmp_filename)
             self.cache[input_filename] = tmp_filename
