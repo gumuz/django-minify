@@ -164,8 +164,9 @@ class Minify(object):
             #simple fullpath is the version with <lang> still in there
             combined_files.append(simple_fullpath)
         
+        # hash can return negatives and break the debug js (var file_-6999668547187577964_debug = true; is not valid js)
         cached_file_path = os.path.join(self.cache_dir, '%d_debug.%s' % 
-            (hash(digest), self.extension))
+            (abs(hash(digest)), self.extension))
         
         # ok if the expected output name is the one in cache then return it
         if settings.FROM_CACHE and force_generation and cached_file_path == self.cache.get(tuple(files)):
