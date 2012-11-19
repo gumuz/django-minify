@@ -140,7 +140,7 @@ class Minify(object):
         if settings.DEBUG:
             # Always continue when DEBUG is enabled
             pass
-        elif settings.FROM_CACHE and not force_generation:
+        elif settings.FROM_CACHE and not settings.OFFLINE_GENERATION:
             if cached_file_path:
                 return cached_file_path
             else:
@@ -231,14 +231,14 @@ class Minify(object):
             
             #postfix some debug info to ensure we can check for the file's validity
             if self.extension == 'js':
-                js = 'var file_%s = true;' % name
+                js = 'var file_%s = true;\n' % name
                 combined_output += js
-                js = 'var file_%s = true;' % name.replace('debug', 'mini')
+                js = 'var file_%s = true;\n' % name.replace('debug', 'mini')
                 combined_output += js
             elif self.extension == 'css':
-                css = '#file_%s{color: #FF00CC;}' % name
+                css = '#file_%s{color: #FF00CC;}\n' % name
                 combined_output += css
-                css = '#file_%s{color: #FF00CC;}' % name.replace('debug', 'mini')
+                css = '#file_%s{color: #FF00CC;}\n' % name.replace('debug', 'mini')
                 combined_output += css
             else:
                 raise TypeError('Extension %r is not supported'
@@ -328,11 +328,16 @@ class Minify(object):
                     filename = replace_lang(input_filename, locale)
                     lang_specific_output_path = filename.replace('_debug_', '_mini_')
                     tmp_filename = lang_specific_output_path + '.tmp'
-                    localized_filename = self._get_combined_filename(minified_localized[locale], force_generation)
+
+                    if minified_localized[locale]:
+                        localized_filename = self._get_combined_filename(minified_localized[locale], force_generation)
+                    else:
+                        localized_filename = None
 
                     with open(tmp_filename, "w") as fh:
-                        with open(localized_filename) as loc_fh:
-                            fh.write(loc_fh.read())
+                        if localized_filename is not None:
+                            with open(localized_filename) as loc_fh:
+                                fh.write(loc_fh.read())
                         fh.write(not_localized_content)
 
                     #raise an error if the file exist, or remove it if rebuilding
