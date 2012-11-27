@@ -170,6 +170,7 @@ class Minify(object):
         
         # ok if the expected output name is the one in cache then return it
         if settings.FROM_CACHE and force_generation and cached_file_path == self.cache.get(tuple(files)):
+            self.cache[tuple(files)] = cached_file_path
             return cached_file_path
 
         if not os.path.isfile(cached_file_path) or force_generation:
@@ -178,9 +179,8 @@ class Minify(object):
             cached_file_path = self._generate_combined_file(cached_file_path, combined_files)
         elif language_specific:
             cached_file_path = append_lang(cached_file_path)
-            
+
         self.cache[tuple(files)] = cached_file_path
-        
         return cached_file_path
 
     def _generate_combined_file(self, filename, files):
