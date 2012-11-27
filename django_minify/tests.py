@@ -38,16 +38,16 @@ class TestLangSupport(unittest.TestCase):
         #try with from cache disabled
         minified_filename = lang_minify.get_minified_filename(force_generation=True)
         pt_filename = utils.replace_lang(minified_filename, 'pt-br')
-        #this shouldnt have been regenerated
-        #TODO: Maybe it would be desired behaviour to rebuild
-        assert not os.path.isfile(pt_filename)
+        #this should have been regenerated
+        assert os.path.isfile(pt_filename)
         
         #try with from cache enabled
         OLD_FROM_CACHE, OLD_DEBUG = settings.FROM_CACHE, settings.DEBUG
         settings.FROM_CACHE = True
         settings.DEBUG = False
+        os.remove(pt_filename)
         try:
-            minified_filename = lang_minify.get_minified_filename(force_generation=True)
+            minified_filename = lang_minify.get_minified_filename(force_generation=False)
             pt_filename = utils.replace_lang(minified_filename, 'pt-br')
             #this shouldnt have been regenerated
             assert not os.path.isfile(pt_filename)

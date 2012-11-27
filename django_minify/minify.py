@@ -133,7 +133,7 @@ class Minify(object):
         fh.close()
     
     def get_combined_filename(self, force_generation=False, raise_=False):
-        return self._get_combined_filename(files=self.files, force_generation=False, raise_=False)
+        return self._get_combined_filename(files=self.files, force_generation=force_generation, raise_=raise_)
 
     def _get_combined_filename(self, files, force_generation=False, raise_=False):
         cached_file_path = self.cache.get(tuple(files))
