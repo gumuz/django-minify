@@ -165,7 +165,7 @@ class Minify(object):
             combined_files.append(simple_fullpath)
         
         # hash can return negatives and break the debug js (var file_-6999668547187577964_debug = true; is not valid js)
-        cached_file_path = os.path.join(self.cache_dir, '%d_debug.%s' % 
+        cached_file_path = os.path.join(self.cache_dir, '%d_debug_.%s' % 
             (abs(hash(digest)), self.extension))
         
         # ok if the expected output name is the one in cache then return it
