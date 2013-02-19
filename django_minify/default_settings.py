@@ -19,7 +19,7 @@ JAVA_PATHS = [
     'c:/Windows/System32/java.exe',
 ]
 
-YUI_PATH = _path.join(_path.dirname(__file__), 'yuicompressor-2.4.6.jar')
+YUI_PATH = _path.join(_path.dirname(__file__), 'yuicompressor-2.4.7.jar')
 JS_COMPRESSION_COMMAND = CSS_COMPRESSION_COMMAND = ' '.join([
     '%(JAVA_PATH)s',
     '-jar',
