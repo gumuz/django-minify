@@ -29,7 +29,7 @@ setup(
     setup_requires=[
         'nose>=1.0',
     ],
-    package_data={'': ['yuicompressor-2.4.6.jar']},
+    package_data={'': ['yuicompressor-2.4.7.jar']},
     classifiers=[
         'License :: OSI Approved :: BSD License',
     ],
