@@ -6,6 +6,13 @@ from jinja2 import Markup, contextfunction, ext, nodes
 
 register = Library()
 
+def urljoin(*args):
+    """
+    Joins given arguments into a url. Trailing but not leading slashes are
+    stripped for each argument.
+    """
+
+    return "/".join(map(lambda x: str(x).rstrip('/'), args))
 
 class MinifyExtension(ext.Extension):
     tags = None
@@ -86,7 +93,7 @@ class IncludeExtension(MinifyExtension):
             drop_needle=True,
         ))
 
-        base_path = '/'.join([settings.MEDIA_URL, self.extension, 'original'])
+        base_path = urljoin(settings.MEDIA_URL, self.extension, 'original')
         
         output_nodes = []
         if settings.DEBUG and not getattr(settings, 'TEST_COMPILE', False):
